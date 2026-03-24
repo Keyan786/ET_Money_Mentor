@@ -16,11 +16,7 @@ Intelligent financial planning web application with three core modules:
 
 ### 1. Environment variables
 
-Copy `.env.example` to `.env` and fill in your API keys:
-
-```bash
-cp .env.example .env
-```
+Copy `.env` and fill in your API keys:
 
 ### 2. Backend
 
