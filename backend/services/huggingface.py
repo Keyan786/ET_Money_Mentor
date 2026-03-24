@@ -54,6 +54,13 @@ def _query(user_prompt: str, max_tokens: int = 1024) -> str:
         return f"AI analysis unavailable: {str(e)}"
 
 
+def _context_block(profile: dict) -> str:
+    ctx = profile.get('additional_context', '')
+    if ctx and ctx.strip():
+        return f"\nAdditional context shared by the user about their goals and concerns:\n\"{ctx.strip()}\"\nIncorporate this context into your advice.\n"
+    return ''
+
+
 def generate_fire_summary(profile: dict, projections: dict) -> str:
     prompt = (
         f"Analyze this FIRE (Financial Independence, Retire Early) plan:\n"
@@ -64,7 +71,8 @@ def generate_fire_summary(profile: dict, projections: dict) -> str:
         f"- Risk tolerance: {profile.get('risk_tolerance')}\n"
         f"- FIRE number: ₹{projections.get('fire_number'):,}\n"
         f"- Projected FIRE date: {projections.get('fire_date')}\n"
-        f"- Monthly SIP needed: ₹{projections.get('monthly_sip'):,}\n\n"
+        f"- Monthly SIP needed: ₹{projections.get('monthly_sip'):,}\n"
+        f"{_context_block(profile)}\n"
         f"Provide: 1) Feasibility assessment, 2) Key risks to watch, "
         f"3) Three actionable next steps. Keep it concise (under 200 words)."
     )
@@ -78,7 +86,8 @@ def generate_risk_warning(profile: dict) -> str:
         f"- Monthly expenses: ₹{profile.get('monthly_expenses'):,}\n"
         f"- Total debt/EMIs: ₹{profile.get('total_debt', 0):,}\n"
         f"- Emergency fund: ₹{profile.get('emergency_fund', 0):,}\n"
-        f"- Investments: ₹{profile.get('current_investments', 0):,}\n\n"
+        f"- Investments: ₹{profile.get('current_investments', 0):,}\n"
+        f"{_context_block(profile)}\n"
         f"Flag specific risks (high debt-to-income, no emergency fund, "
         f"over-concentration) with severity levels (Critical/High/Medium/Low). "
         f"Keep it concise (under 150 words)."
@@ -103,15 +112,19 @@ def generate_investment_explanation(allocation: dict, funds: list) -> str:
     return _query(prompt, max_tokens=800)
 
 
-def generate_tax_strategy(income: float, deductions: dict, regime: str) -> str:
+def generate_tax_strategy(income: float, deductions: dict, regime: str, additional_context: str = '') -> str:
     ded_lines = '\n'.join(
         f"  - {k}: ₹{v:,}" for k, v in deductions.items() if v > 0
     )
+    ctx = ''
+    if additional_context and additional_context.strip():
+        ctx = f'\nUser goals/concerns: "{additional_context.strip()}"\nIncorporate this into your advice.\n'
     prompt = (
         f"Create a step-by-step tax-saving action plan:\n"
         f"- Annual income: ₹{income:,}\n"
         f"- Preferred regime: {regime}\n"
-        f"- Current deductions:\n{ded_lines or '  None'}\n\n"
+        f"- Current deductions:\n{ded_lines or '  None'}\n"
+        f"{ctx}\n"
         f"Suggest specific instruments (ELSS, PPF, NPS, health insurance, HRA) "
         f"with estimated savings per instrument. Keep it concise (under 200 words)."
     )
@@ -125,7 +138,8 @@ def generate_health_summary(scores: dict, profile: dict) -> str:
         f"Dimension scores:\n{score_lines}\n\n"
         f"Profile: income ₹{profile.get('monthly_income', 0):,}/month, "
         f"expenses ₹{profile.get('monthly_expenses', 0):,}/month, "
-        f"debt ₹{profile.get('total_debt', 0):,}/month\n\n"
+        f"debt ₹{profile.get('total_debt', 0):,}/month\n"
+        f"{_context_block(profile)}\n"
         f"Highlight the weakest areas and provide 3 prioritized improvement steps. "
         f"Keep it concise (under 200 words)."
     )

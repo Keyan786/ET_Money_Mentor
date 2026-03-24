@@ -1,25 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, Loader2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { calculateHealthScore } from '../api/client';
+import { calculateHealthScore, getProfile } from '../api/client';
 import { getScoreColor } from '../utils/formatters';
 import ScoreGauge from '../components/ScoreGauge';
 import InsightCard from '../components/InsightCard';
-
-const INITIAL = {
-  age: 30,
-  monthly_income: 80000,
-  monthly_expenses: 35000,
-  total_debt: 5000,
-  emergency_fund: 100000,
-  insurance_coverage: 5000000,
-  investments: {
-    equity: 300000,
-    debt: 100000,
-    gold: 50000,
-    real_estate: 0,
-    crypto: 0,
-  },
-};
 
 const DIM_LABELS = {
   savings_rate: 'Savings Rate',
@@ -31,10 +15,42 @@ const DIM_LABELS = {
 };
 
 export default function HealthScore() {
-  const [form, setForm] = useState(INITIAL);
+  const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getProfile()
+      .then(res => {
+        const p = res.data;
+        const inv = p.investments || {};
+        setForm({
+          age: p.age || 30,
+          monthly_income: p.monthly_income || 0,
+          monthly_expenses: p.monthly_expenses || 0,
+          total_debt: p.monthly_emi || p.total_debt || 0,
+          emergency_fund: p.emergency_fund || 0,
+          insurance_coverage: p.insurance_coverage || 0,
+          investments: {
+            equity: inv.equity_mf || 0,
+            debt: inv.debt_funds || 0,
+            gold: inv.gold || 0,
+            real_estate: 0,
+            crypto: 0,
+          },
+        });
+      })
+      .catch(() => {
+        setForm({
+          age: 30, monthly_income: 0, monthly_expenses: 0, total_debt: 0,
+          emergency_fund: 0, insurance_coverage: 0,
+          investments: { equity: 0, debt: 0, gold: 0, real_estate: 0, crypto: 0 },
+        });
+      })
+      .finally(() => setProfileLoading(false));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -62,6 +78,14 @@ export default function HealthScore() {
       setLoading(false);
     }
   };
+
+  if (profileLoading || !form) {
+    return (
+      <div className="max-w-6xl mx-auto animate-fade-in">
+        <div className="bg-white rounded-xl border border-gray-200 h-64 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in">
@@ -96,8 +120,7 @@ export default function HealthScore() {
         </div>
 
         <button
-          type="submit"
-          disabled={loading}
+          type="submit" disabled={loading}
           className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
         >
           {loading ? <><Loader2 size={16} className="animate-spin" /> Calculating...</> : 'Calculate Health Score'}
@@ -144,10 +167,7 @@ function Field({ label, name, value, onChange }) {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>
       <input
-        type="number"
-        name={name}
-        value={value}
-        onChange={onChange}
+        type="number" name={name} value={value} onChange={onChange}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
       />
     </div>

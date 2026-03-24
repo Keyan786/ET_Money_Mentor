@@ -1,26 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calculator, Loader2, AlertTriangle } from 'lucide-react';
-import { optimizeTax } from '../api/client';
+import { optimizeTax, getProfile } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 import TaxBreakdown from '../components/TaxBreakdown';
 import InsightCard from '../components/InsightCard';
 
-const INITIAL = {
-  annual_income: 1200000,
-  deductions: {
-    '80C': 50000,
-    '80D': 10000,
-    '80CCD': 0,
-    'HRA': 0,
-  },
-  regime_preference: 'auto',
-};
-
 export default function TaxWizard() {
-  const [form, setForm] = useState(INITIAL);
+  const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getProfile()
+      .then(res => {
+        const p = res.data;
+        const d = p.deductions || {};
+        setForm({
+          annual_income: p.annual_income || 0,
+          deductions: {
+            '80C': d.section_80c || 0,
+            '80D': d.section_80d || 0,
+            '80CCD': d.nps || 0,
+            'HRA': d.hra || 0,
+          },
+          regime_preference: 'auto',
+        });
+      })
+      .catch(() => {
+        setForm({
+          annual_income: 0,
+          deductions: { '80C': 0, '80D': 0, '80CCD': 0, 'HRA': 0 },
+          regime_preference: 'auto',
+        });
+      })
+      .finally(() => setProfileLoading(false));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -53,6 +69,14 @@ export default function TaxWizard() {
     }
   };
 
+  if (profileLoading || !form) {
+    return (
+      <div className="max-w-6xl mx-auto animate-fade-in">
+        <div className="bg-white rounded-xl border border-gray-200 h-64 animate-pulse" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto animate-fade-in">
       <div className="flex items-center gap-3 mb-6">
@@ -70,19 +94,14 @@ export default function TaxWizard() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Annual Income (₹)</label>
             <input
-              type="number"
-              name="annual_income"
-              value={form.annual_income}
-              onChange={handleChange}
+              type="number" name="annual_income" value={form.annual_income} onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Regime Preference</label>
             <select
-              name="regime_preference"
-              value={form.regime_preference}
-              onChange={handleChange}
+              name="regime_preference" value={form.regime_preference} onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             >
               <option value="auto">Auto (Best for me)</option>
@@ -101,8 +120,7 @@ export default function TaxWizard() {
         </div>
 
         <button
-          type="submit"
-          disabled={loading}
+          type="submit" disabled={loading}
           className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
         >
           {loading ? <><Loader2 size={16} className="animate-spin" /> Optimizing...</> : 'Optimize My Taxes'}
@@ -153,10 +171,7 @@ function Field({ label, name, value, onChange }) {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>
       <input
-        type="number"
-        name={name}
-        value={value}
-        onChange={onChange}
+        type="number" name={name} value={value} onChange={onChange}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
       />
     </div>

@@ -1,28 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Flame, Loader2, AlertTriangle } from 'lucide-react';
-import { generateFirePlan } from '../api/client';
+import { generateFirePlan, getProfile } from '../api/client';
 import { formatCurrency, formatPercent } from '../utils/formatters';
 import RoadmapTimeline from '../components/RoadmapTimeline';
 import AllocationChart from '../components/AllocationChart';
 import SIPCard from '../components/SIPCard';
 import InsightCard from '../components/InsightCard';
 
-const INITIAL = {
-  age: 28,
-  target_age: 45,
-  monthly_income: 100000,
-  monthly_expenses: 40000,
-  current_savings: 200000,
-  current_investments: 500000,
-  total_debt: 0,
-  risk_tolerance: 'moderate',
-};
-
 export default function FirePlanner() {
-  const [form, setForm] = useState(INITIAL);
+  const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getProfile()
+      .then(res => {
+        const p = res.data;
+        setForm({
+          age: p.age || 30,
+          target_age: p.target_age || 50,
+          monthly_income: p.monthly_income || 0,
+          monthly_expenses: p.monthly_expenses || 0,
+          current_savings: p.current_savings || 0,
+          current_investments: p.current_investments || 0,
+          total_debt: p.monthly_emi || p.total_debt || 0,
+          risk_tolerance: p.risk_tolerance || 'moderate',
+        });
+      })
+      .catch(() => {
+        setForm({
+          age: 30, target_age: 50, monthly_income: 0, monthly_expenses: 0,
+          current_savings: 0, current_investments: 0, total_debt: 0, risk_tolerance: 'moderate',
+        });
+      })
+      .finally(() => setProfileLoading(false));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,6 +59,14 @@ export default function FirePlanner() {
       setLoading(false);
     }
   };
+
+  if (profileLoading || !form) {
+    return (
+      <div className="max-w-6xl mx-auto animate-fade-in">
+        <div className="bg-white rounded-xl border border-gray-200 h-64 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in">
@@ -155,10 +177,7 @@ function Field({ label, name, value, onChange }) {
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>
       <input
-        type="number"
-        name={name}
-        value={value}
-        onChange={onChange}
+        type="number" name={name} value={value} onChange={onChange}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
       />
     </div>
