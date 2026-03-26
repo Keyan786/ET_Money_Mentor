@@ -12,6 +12,7 @@ const DIM_LABELS = {
   investment_diversification: 'Investment Diversification',
   insurance_adequacy: 'Insurance Adequacy',
   retirement_readiness: 'Retirement Readiness',
+  tax_efficiency: 'Tax Efficiency',
 };
 
 export default function HealthScore() {

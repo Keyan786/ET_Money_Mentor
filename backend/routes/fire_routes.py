@@ -23,7 +23,9 @@ def plan():
         'current_savings': float(data.get('current_savings', 0)),
         'current_investments': float(data.get('current_investments', 0)),
         'total_debt': float(data.get('total_debt', 0)),
+        'monthly_emi': float(data.get('monthly_emi', 0)),
         'risk_tolerance': data.get('risk_tolerance', 'moderate'),
+        'goals': data.get('goals', []),
     }
 
     try:

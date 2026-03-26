@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Onboarding from './pages/Onboarding';
 import Profile from './pages/Profile';
+import Tasks from './pages/Tasks';
 
 function OnboardingGuard({ children }) {
   const { user } = useAuth();
@@ -48,6 +49,7 @@ export default function App() {
                   <Route path="/health" element={<HealthScore />} />
                   <Route path="/tax" element={<TaxWizard />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/tasks" element={<Tasks />} />
                 </Routes>
               </Layout>
             </OnboardingGuard>

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Flame, Heart, Calculator, Menu, X, LogOut, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Flame, Heart, Calculator, Menu, X, LogOut, UserCircle, ListChecks } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/fire', label: 'FIRE Planner', icon: Flame },
   { to: '/health', label: 'Health Score', icon: Heart },
   { to: '/tax', label: 'Tax Wizard', icon: Calculator },
+  { to: '/tasks', label: 'Monthly Tasks', icon: ListChecks },
   { to: '/profile', label: 'My Profile', icon: UserCircle },
 ];
 

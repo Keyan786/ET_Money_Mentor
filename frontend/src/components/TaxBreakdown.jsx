@@ -1,5 +1,12 @@
 import { formatCurrency } from '../utils/formatters';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Shield, Droplets, Lock } from 'lucide-react';
+
+const RISK_STYLES = {
+  none: 'bg-gray-100 text-gray-600',
+  low: 'bg-emerald-100 text-emerald-700',
+  moderate: 'bg-amber-100 text-amber-700',
+  high: 'bg-red-100 text-red-700',
+};
 
 export default function TaxBreakdown({ oldRegime, newRegime, recommended, suggestions }) {
   if (!oldRegime || !newRegime) return null;
@@ -16,16 +23,35 @@ export default function TaxBreakdown({ oldRegime, newRegime, recommended, sugges
           <h3 className="font-semibold text-gray-800 mb-4">Tax-Saving Opportunities</h3>
           <div className="space-y-3">
             {suggestions.map((s, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              <div key={i} className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
                 <ArrowRight size={16} className="text-indigo-500 mt-0.5 shrink-0" />
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="font-semibold text-sm text-gray-800">{s.name}</span>
                     <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">{s.section}</span>
                   </div>
                   <p className="text-sm text-gray-600">{s.description}</p>
+                  {(s.risk || s.liquidity || s.lock_in) && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {s.risk && s.risk !== 'n/a' && (
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${RISK_STYLES[s.risk] || RISK_STYLES.moderate}`}>
+                          <Shield size={10} /> Risk: {s.risk}
+                        </span>
+                      )}
+                      {s.liquidity && s.liquidity !== 'n/a' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          <Droplets size={10} /> Liquidity: {s.liquidity}
+                        </span>
+                      )}
+                      {s.lock_in && s.lock_in !== 'n/a' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                          <Lock size={10} /> Lock-in: {s.lock_in}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {s.potential_tax_saved > 0 && (
-                    <p className="text-sm font-semibold text-emerald-600 mt-1">
+                    <p className="text-sm font-semibold text-emerald-600 mt-2">
                       Potential saving: {formatCurrency(s.potential_tax_saved)}
                     </p>
                   )}

@@ -131,6 +131,23 @@ def generate_tax_strategy(income: float, deductions: dict, regime: str, addition
     return _query(prompt, max_tokens=800)
 
 
+def generate_task_feedback(score_data: dict) -> str:
+    trend_lines = '\n'.join(
+        f"  - {m['month']}: {m['completed']}/{m['total']} tasks ({m['pct']}%)"
+        for m in score_data.get('trend', [])
+    )
+    prompt = (
+        f"Analyze this user's monthly financial task completion behavior:\n"
+        f"Current month: {score_data.get('completed', 0)}/{score_data.get('total', 0)} tasks completed "
+        f"({score_data.get('score', 0)}% completion rate)\n"
+        f"Recent trend:\n{trend_lines or '  No previous data'}\n\n"
+        f"Provide: 1) A brief behavioral assessment (disciplined, improving, slipping, etc.), "
+        f"2) One motivational insight, 3) One specific tip to improve consistency next month. "
+        f"Be encouraging but honest. Keep it under 120 words."
+    )
+    return _query(prompt, max_tokens=500)
+
+
 def generate_health_summary(scores: dict, profile: dict) -> str:
     score_lines = '\n'.join(f"  - {k}: {v}/100" for k, v in scores.items())
     prompt = (

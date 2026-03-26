@@ -7,8 +7,9 @@ const ALL_STEPS = [
   'Calculating FIRE projections with real returns...',
   'Evaluating your financial health across 6 dimensions...',
   'Optimizing tax strategy (Old vs New regime)...',
-  'Compiling recommendations and alerts...',
   'Saving analysis results...',
+  'Generating monthly action tasks...',
+  'Compiling recommendations and alerts...',
   'Analysis complete!',
 ];
 

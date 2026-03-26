@@ -46,6 +46,7 @@ class UserProfile(db.Model):
     monthly_emi = db.Column(db.Float, default=0)
     risk_tolerance = db.Column(db.String(20), default='moderate')
     target_age = db.Column(db.Integer, default=50)
+    goals_json = db.Column(db.Text, default='[]')
     additional_context = db.Column(db.Text, default='')
     onboarding_complete = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -66,6 +67,7 @@ class UserProfile(db.Model):
             'monthly_emi': self.monthly_emi,
             'risk_tolerance': self.risk_tolerance,
             'target_age': self.target_age,
+            'goals': json.loads(self.goals_json or '[]'),
             'additional_context': self.additional_context or '',
             'onboarding_complete': self.onboarding_complete,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -82,6 +84,43 @@ class UserProfile(db.Model):
             self.investments_json = json.dumps(data['investments'])
         if 'deductions' in data:
             self.deductions_json = json.dumps(data['deductions'])
+        if 'goals' in data:
+            self.goals_json = json.dumps(data['goals'])
+
+
+class MonthlyTask(db.Model):
+    __tablename__ = 'monthly_tasks'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    task_name = db.Column(db.String(300), nullable=False)
+    task_type = db.Column(db.String(50), nullable=False)
+    engine = db.Column(db.String(20), nullable=False)
+    amount = db.Column(db.Float, default=0)
+    status = db.Column(db.String(20), default='pending')
+    priority = db.Column(db.String(20), default='medium')
+    profile_field = db.Column(db.String(50), default='')
+    profile_op = db.Column(db.String(10), default='add')
+    month = db.Column(db.String(7), nullable=False)
+    verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_name': self.task_name,
+            'task_type': self.task_type,
+            'engine': self.engine,
+            'amount': self.amount,
+            'status': self.status,
+            'priority': self.priority,
+            'profile_field': self.profile_field,
+            'profile_op': self.profile_op,
+            'month': self.month,
+            'verified': self.verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
 
 
 class AnalysisCache(db.Model):

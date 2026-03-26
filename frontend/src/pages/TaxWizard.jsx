@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Calculator, Loader2, AlertTriangle } from 'lucide-react';
-import { optimizeTax, getProfile } from '../api/client';
+import { useState, useEffect, useRef } from 'react';
+import { Calculator, Loader2, AlertTriangle, Upload, FileText, CheckCircle2 } from 'lucide-react';
+import { optimizeTax, getProfile, uploadForm16 } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 import TaxBreakdown from '../components/TaxBreakdown';
 import InsightCard from '../components/InsightCard';
@@ -11,6 +11,9 @@ export default function TaxWizard() {
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     getProfile()
@@ -24,15 +27,20 @@ export default function TaxWizard() {
             '80D': d.section_80d || 0,
             '80CCD': d.nps || 0,
             'HRA': d.hra || 0,
+            '80E': d['80E'] || 0,
+            '80G': d['80G'] || 0,
+            '80TTA': d['80TTA'] || 0,
           },
           regime_preference: 'auto',
+          risk_tolerance: p.risk_tolerance || 'moderate',
         });
       })
       .catch(() => {
         setForm({
           annual_income: 0,
-          deductions: { '80C': 0, '80D': 0, '80CCD': 0, 'HRA': 0 },
+          deductions: { '80C': 0, '80D': 0, '80CCD': 0, 'HRA': 0, '80E': 0, '80G': 0, '80TTA': 0 },
           regime_preference: 'auto',
+          risk_tolerance: 'moderate',
         });
       })
       .finally(() => setProfileLoading(false));
@@ -40,8 +48,8 @@ export default function TaxWizard() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'regime_preference') {
-      setForm((prev) => ({ ...prev, regime_preference: value }));
+    if (name === 'regime_preference' || name === 'risk_tolerance') {
+      setForm((prev) => ({ ...prev, [name]: value }));
     } else if (name === 'annual_income') {
       setForm((prev) => ({ ...prev, annual_income: Number(value) }));
     }
@@ -53,6 +61,38 @@ export default function TaxWizard() {
       ...prev,
       deductions: { ...prev.deductions, [name]: Number(value) },
     }));
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    setUploadResult(null);
+    try {
+      const res = await uploadForm16(file, true);
+      const parsed = res.data;
+      setUploadResult(parsed);
+      setForm(prev => ({
+        ...prev,
+        annual_income: parsed.gross_salary || prev.annual_income,
+        deductions: {
+          ...prev.deductions,
+          '80C': parsed.deductions?.['80C'] || prev.deductions['80C'],
+          '80D': parsed.deductions?.['80D'] || prev.deductions['80D'],
+          '80CCD': parsed.deductions?.['80CCD'] || prev.deductions['80CCD'],
+          'HRA': parsed.deductions?.['HRA'] || prev.deductions['HRA'],
+          '80E': parsed.deductions?.['80E'] || prev.deductions['80E'],
+          '80G': parsed.deductions?.['80G'] || prev.deductions['80G'],
+          '80TTA': parsed.deductions?.['80TTA'] || prev.deductions['80TTA'],
+        },
+      }));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to parse Form 16. Try manual input.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -89,6 +129,48 @@ export default function TaxWizard() {
         </div>
       </div>
 
+      {/* Form 16 Upload */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-5 mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          <FileText size={18} className="text-indigo-500" />
+          <div>
+            <h3 className="font-semibold text-gray-800 text-sm">Upload Form 16</h3>
+            <p className="text-xs text-gray-500">Auto-extract salary, HRA, and deductions from your Form 16 PDF</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 bg-white border border-indigo-300 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer hover:bg-indigo-50 transition-colors">
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {uploading ? 'Parsing...' : 'Choose PDF'}
+            <input
+              ref={fileRef} type="file" accept=".pdf" className="hidden"
+              onChange={handleFileUpload} disabled={uploading}
+            />
+          </label>
+          {uploadResult && !uploadResult.error && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+              <CheckCircle2 size={12} /> Form 16 parsed and applied
+            </span>
+          )}
+        </div>
+        {uploadResult && uploadResult.gross_salary > 0 && (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="bg-white rounded-lg p-2">
+              <p className="text-gray-400">Gross Salary</p>
+              <p className="font-semibold text-gray-800">{formatCurrency(uploadResult.gross_salary)}</p>
+            </div>
+            {Object.entries(uploadResult.deductions || {}).map(([k, v]) =>
+              v > 0 ? (
+                <div key={k} className="bg-white rounded-lg p-2">
+                  <p className="text-gray-400">{k}</p>
+                  <p className="font-semibold text-gray-800">{formatCurrency(v)}</p>
+                </div>
+              ) : null
+            )}
+          </div>
+        )}
+      </div>
+
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
           <div>
@@ -112,11 +194,16 @@ export default function TaxWizard() {
         </div>
 
         <h3 className="font-semibold text-gray-700 mb-3 text-sm">Current Deductions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <Field label="Section 80C (₹)" name="80C" value={form.deductions['80C']} onChange={handleDeduction} />
           <Field label="Section 80D (₹)" name="80D" value={form.deductions['80D']} onChange={handleDeduction} />
           <Field label="NPS - 80CCD(1B) (₹)" name="80CCD" value={form.deductions['80CCD']} onChange={handleDeduction} />
           <Field label="HRA Exemption (₹)" name="HRA" value={form.deductions['HRA']} onChange={handleDeduction} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <Field label="Education Loan 80E (₹)" name="80E" value={form.deductions['80E']} onChange={handleDeduction} />
+          <Field label="Donations 80G (₹)" name="80G" value={form.deductions['80G']} onChange={handleDeduction} />
+          <Field label="Savings Interest 80TTA (₹)" name="80TTA" value={form.deductions['80TTA']} onChange={handleDeduction} />
         </div>
 
         <button

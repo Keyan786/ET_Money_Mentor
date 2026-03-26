@@ -16,6 +16,7 @@ from backend.routes.market_routes import market_bp
 from backend.routes.auth_routes import auth_bp
 from backend.routes.profile_routes import profile_bp
 from backend.routes.dashboard_routes import dashboard_bp
+from backend.routes.task_routes import task_bp
 
 
 def create_app():
@@ -35,6 +36,7 @@ def create_app():
     app.register_blueprint(health_bp)
     app.register_blueprint(tax_bp)
     app.register_blueprint(market_bp)
+    app.register_blueprint(task_bp)
 
     with app.app_context():
         db.create_all()

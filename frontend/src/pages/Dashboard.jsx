@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import {
   RefreshCw, Target, Wallet, Calendar, AlertTriangle, Sparkles,
   TrendingUp, ArrowRight, Shield, Flame, Heart, Calculator,
-  CheckCircle2, ChevronRight, Zap, BadgeAlert, CircleDollarSign,
+  CheckCircle2, ChevronRight, Zap, BadgeAlert, CircleDollarSign, ListChecks,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getDashboard } from '../api/client';
+import { getDashboard, getCalendar } from '../api/client';
 import { formatCurrency, formatPercent } from '../utils/formatters';
 import ProgressLoader from '../components/ProgressLoader';
 
@@ -124,7 +125,7 @@ function FullDashboard({ data }) {
   return (
     <div className="space-y-6">
       {/* Top stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <QuickStat
           icon={Target} label="FIRE Progress"
           value={data.goal_progress ? `${data.goal_progress.percent_complete}%` : '--'}
@@ -143,6 +144,14 @@ function FullDashboard({ data }) {
           sub={data.net_worth ? `Assets: ${formatCurrency(data.net_worth.assets)}` : ''}
           color="text-blue-600" bg="bg-blue-50"
         />
+        <Link to="/tasks">
+          <QuickStat
+            icon={ListChecks} label="Task Score"
+            value={data.task_score ? `${data.task_score.score}%` : '--'}
+            sub={data.task_score ? `${data.task_score.completed}/${data.task_score.total} done` : ''}
+            color="text-teal-600" bg="bg-teal-50"
+          />
+        </Link>
         <QuickStat
           icon={CircleDollarSign} label="Tax Saveable"
           value={data.tax_savings ? formatCurrency(data.tax_savings) : '--'}
@@ -155,17 +164,33 @@ function FullDashboard({ data }) {
       {data.next_actions?.length > 0 && (
         <Section title="Next Actions" icon={Zap} iconColor="text-amber-500">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {data.next_actions.map((a, i) => (
-              <div key={i} className={`border-l-4 rounded-lg p-4 ${PRIORITY_STYLES[a.priority]}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-sm text-gray-800">{a.title}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[a.priority]}`}>
-                    {a.priority}
-                  </span>
+            {data.next_actions.map((a, i) => {
+              const progress = a.progress ?? (a.dimension && data.health_dimensions?.[a.dimension]);
+              return (
+                <div key={i} className={`border-l-4 rounded-lg p-4 ${PRIORITY_STYLES[a.priority]}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm text-gray-800">{a.title}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_BADGES[a.priority]}`}>
+                      {a.priority}
+                    </span>
+                    {progress != null && (
+                      <span className="text-xs font-semibold text-gray-500 ml-auto">{progress}%</span>
+                    )}
+                  </div>
+                  {progress != null && (
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-500 ${
+                          progress >= 60 ? 'bg-emerald-500' : progress >= 30 ? 'bg-amber-400' : 'bg-red-400'
+                        }`}
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-600">{a.action}</p>
                 </div>
-                <p className="text-sm text-gray-600">{a.action}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Section>
       )}
@@ -308,10 +333,33 @@ function FullDashboard({ data }) {
         </Section>
       </div>
 
+      {/* Progress Calendar */}
+      <ProgressCalendar />
+
       {/* AI Insight */}
       {data.ai_insight && (
         <Section title="AI Insight" icon={Sparkles} iconColor="text-purple-500">
           <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{data.ai_insight}</div>
+        </Section>
+      )}
+
+      {/* Pending Tasks preview */}
+      {data.pending_tasks?.length > 0 && (
+        <Section title="Upcoming Tasks" icon={ListChecks} iconColor="text-teal-500">
+          <div className="space-y-2">
+            {data.pending_tasks.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  t.priority === 'critical' ? 'bg-red-500' : t.priority === 'high' ? 'bg-amber-500' : 'bg-indigo-400'
+                }`} />
+                <p className="text-sm text-gray-700 flex-1 truncate">{t.task_name}</p>
+                {t.amount > 0 && <span className="text-xs text-gray-400 shrink-0">{formatCurrency(t.amount)}</span>}
+              </div>
+            ))}
+          </div>
+          <Link to="/tasks" className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 mt-3 hover:text-teal-800">
+            View all tasks <ArrowRight size={12} />
+          </Link>
         </Section>
       )}
 
@@ -322,6 +370,79 @@ function FullDashboard({ data }) {
         <ModuleCard to="/tax" icon={Calculator} label="Tax Wizard" desc="Regime comparison and deduction optimizer" color="from-indigo-500 to-purple-500" />
       </div>
     </div>
+  );
+}
+
+function ProgressCalendar() {
+  const [months, setMonths] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCalendar()
+      .then(res => setMonths(res.data.months || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="h-32 animate-pulse bg-gray-100 rounded-lg" />
+      </div>
+    );
+  }
+
+  const hasData = months.some(m => m.total > 0);
+  if (!hasData) return null;
+
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const maxScore = Math.max(...months.map(m => m.score), 1);
+
+  return (
+    <Section title="Progress Calendar" icon={CalendarDays} iconColor="text-teal-500">
+      <div className="grid grid-cols-6 sm:grid-cols-12 gap-2">
+        {months.map((m) => {
+          const [y, mo] = m.month.split('-');
+          const label = MONTH_NAMES[parseInt(mo, 10) - 1];
+          const bg = m.total === 0
+            ? 'bg-gray-100'
+            : m.score >= 80
+            ? 'bg-emerald-400'
+            : m.score >= 50
+            ? 'bg-amber-300'
+            : m.score > 0
+            ? 'bg-red-300'
+            : 'bg-gray-200';
+          return (
+            <div key={m.month} className="flex flex-col items-center gap-1">
+              <div
+                className={`w-full aspect-square rounded-lg ${bg} flex items-center justify-center relative group cursor-default`}
+                title={`${m.month}: ${m.completed}/${m.total} tasks (${m.score}%)`}
+              >
+                <span className="text-[10px] font-bold text-white drop-shadow-sm">
+                  {m.total > 0 ? `${m.score}%` : ''}
+                </span>
+              </div>
+              <span className="text-[9px] text-gray-400">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-3 justify-center">
+        <span className="flex items-center gap-1 text-[10px] text-gray-500">
+          <span className="w-3 h-3 rounded bg-gray-200 inline-block" /> No tasks
+        </span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500">
+          <span className="w-3 h-3 rounded bg-red-300 inline-block" /> &lt;50%
+        </span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500">
+          <span className="w-3 h-3 rounded bg-amber-300 inline-block" /> 50-79%
+        </span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500">
+          <span className="w-3 h-3 rounded bg-emerald-400 inline-block" /> 80%+
+        </span>
+      </div>
+    </Section>
   );
 }
 

@@ -1,12 +1,14 @@
 from backend.services.huggingface import generate_health_summary
+from backend.engines.tax_engine import compute_tax_efficiency
 
 WEIGHTS = {
-    'savings_rate': 0.20,
-    'debt_health': 0.20,
+    'savings_rate': 0.15,
+    'debt_health': 0.15,
     'emergency_preparedness': 0.15,
-    'investment_diversification': 0.20,
+    'investment_diversification': 0.15,
     'insurance_adequacy': 0.10,
     'retirement_readiness': 0.15,
+    'tax_efficiency': 0.15,
 }
 
 
@@ -33,35 +35,36 @@ def _score_savings_rate(income: float, expenses: float) -> tuple[int, str]:
     return score, advice
 
 
-def _score_debt_health(income: float, debt: float) -> tuple[int, str]:
+def _score_debt_health(income: float, emi: float) -> tuple[int, str]:
     if income <= 0:
         return 0, "No income reported."
-    dti = debt / income * 100
+    dti = emi / income * 100
     if dti == 0:
-        score, advice = 100, "No debt. Excellent financial position."
+        score, advice = 100, "No EMI obligations. Excellent financial position."
     elif dti <= 20:
-        score, advice = 80, f"Debt-to-income is {dti:.0f}%. Manageable, but aim to reduce."
+        score, advice = 80, f"EMI-to-income is {dti:.0f}%. Manageable, but aim to reduce."
     elif dti <= 35:
-        score, advice = 50, f"Debt-to-income is {dti:.0f}%. Consider accelerating debt repayment."
+        score, advice = 50, f"EMI-to-income is {dti:.0f}%. Consider accelerating debt repayment."
     elif dti <= 50:
-        score, advice = 25, f"Debt-to-income is {dti:.0f}%. This is risky. Prioritize paying off high-interest debt."
+        score, advice = 25, f"EMI-to-income is {dti:.0f}%. This is risky. Prioritize paying off high-interest debt."
     else:
-        score, advice = 0, f"Debt-to-income is {dti:.0f}%. Critical level. Stop new borrowing and aggressively repay."
+        score, advice = 0, f"EMI-to-income is {dti:.0f}%. Critical level. Stop new borrowing and aggressively repay."
     return score, advice
 
 
-def _score_emergency(monthly_expenses: float, emergency_fund: float) -> tuple[int, str]:
+def _score_emergency(monthly_expenses: float, emergency_fund: float, risk_tolerance: str = 'moderate') -> tuple[int, str]:
     if monthly_expenses <= 0:
         return 50, "Unable to assess without expense data."
+    target_months = 9 if risk_tolerance == 'conservative' else 6
     months_covered = emergency_fund / monthly_expenses
-    if months_covered >= 6:
+    if months_covered >= target_months:
         score, advice = 100, f"Emergency fund covers {months_covered:.1f} months. Well prepared."
     elif months_covered >= 3:
-        score, advice = 65, f"Emergency fund covers {months_covered:.1f} months. Build toward 6 months."
+        score, advice = 65, f"Emergency fund covers {months_covered:.1f} months. Build toward {target_months} months."
     elif months_covered > 0:
-        score, advice = 30, f"Emergency fund covers only {months_covered:.1f} months. Prioritize building to 3-6 months."
+        score, advice = 30, f"Emergency fund covers only {months_covered:.1f} months. Prioritize building to {target_months} months."
     else:
-        score, advice = 0, "No emergency fund. This is your #1 priority. Start saving today."
+        score, advice = 0, f"No emergency fund. This is your #1 priority. Target {target_months} months of expenses."
     return score, advice
 
 
@@ -126,33 +129,37 @@ def _score_retirement(age: int, current_investments: float, monthly_income: floa
 def calculate_health_score(profile: dict) -> dict:
     monthly_income = profile.get('monthly_income', 0)
     monthly_expenses = profile.get('monthly_expenses', 0)
-    total_debt = profile.get('total_debt', 0)
+    monthly_emi = profile.get('monthly_emi', 0)
     emergency_fund = profile.get('emergency_fund', 0)
     insurance_coverage = profile.get('insurance_coverage', 0)
     age = profile.get('age', 30)
+    risk_tolerance = profile.get('risk_tolerance', 'moderate')
     investments = profile.get('investments', {})
     current_investments = sum(investments.values()) if investments else 0
 
+    annual_income = profile.get('annual_income', 0)
+    deductions = profile.get('deductions', {})
+
     s_savings, a_savings = _score_savings_rate(monthly_income, monthly_expenses)
-    s_debt, a_debt = _score_debt_health(monthly_income, total_debt)
-    s_emergency, a_emergency = _score_emergency(monthly_expenses, emergency_fund)
+    s_debt, a_debt = _score_debt_health(monthly_income, monthly_emi)
+    s_emergency, a_emergency = _score_emergency(monthly_expenses, emergency_fund, risk_tolerance)
     s_divers, a_divers = _score_diversification(investments)
     s_insurance, a_insurance = _score_insurance(monthly_income, insurance_coverage)
     s_retire, a_retire = _score_retirement(age, current_investments, monthly_income)
 
-    # Edge case: no investments -> cap diversification and retirement
+    tax_eff = compute_tax_efficiency(annual_income, deductions)
+    s_tax, a_tax = tax_eff['score'], tax_eff['advice']
+
     if current_investments == 0:
         s_divers = min(s_divers, 10)
         s_retire = min(s_retire, 10)
 
-    # Edge case: very high debt -> cap overall
-    dti = total_debt / monthly_income * 100 if monthly_income > 0 else 0
-    high_debt_cap = dti > 50
+    dti = monthly_emi / monthly_income * 100 if monthly_income > 0 else 0
 
-    if high_debt_cap:
+    if dti > 50:
         s_debt = 0
         a_debt = (
-            f"Debt-to-income is {dti:.0f}% — critical. "
+            f"EMI-to-income is {dti:.0f}% — critical. "
             "Focus entirely on debt reduction before investing."
         )
 
@@ -163,6 +170,7 @@ def calculate_health_score(profile: dict) -> dict:
         'investment_diversification': {'score': s_divers, 'advice': a_divers},
         'insurance_adequacy': {'score': s_insurance, 'advice': a_insurance},
         'retirement_readiness': {'score': s_retire, 'advice': a_retire},
+        'tax_efficiency': {'score': s_tax, 'advice': a_tax},
     }
 
     overall = sum(
@@ -171,8 +179,8 @@ def calculate_health_score(profile: dict) -> dict:
     )
     overall = round(overall)
 
-    if high_debt_cap:
-        overall = min(overall, 35)
+    if dti > 50:
+        overall = round(overall * 0.7)
 
     if overall >= 71:
         zone = 'green'
